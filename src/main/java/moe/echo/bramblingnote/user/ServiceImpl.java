@@ -36,7 +36,8 @@ public class ServiceImpl {
         return this.repository.existsByEmail(email);
     }
 
-    @Cacheable("users")
+    // sync: on a miss, one thread loads the user and the others wait (cache breakdown).
+    @Cacheable(cacheNames = "users", sync = true)
     public UserEntity findById(UUID id) {
         Assert.notNull(id, "id cannot be null");
         return this.repository.findById(id).orElse(null);
