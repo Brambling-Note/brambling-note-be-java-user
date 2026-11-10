@@ -232,9 +232,12 @@ public class Controller {
         return getUserFromSession();
     }
 
-    @GetMapping("/{email}")
+    // POST with a body: a password in the URL ends up in access logs.
+    @PostMapping("/credentials")
     @JsonView(View.ViewOnly.class)
-    public UserDto getByEmailAndPassword(@PathVariable String email, @RequestParam String password) {
+    public UserDto getByEmailAndPassword(@RequestBody LoginRequest login) {
+        String email = login.email();
+        String password = login.password();
         UserDto user = userMapper.toUserDto(service.findByEmail(email));
         if (user == null) {
             throw new ResponseStatusException(
