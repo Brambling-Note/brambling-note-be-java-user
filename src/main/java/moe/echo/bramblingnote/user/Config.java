@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 
 import java.time.Duration;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Configuration
 public class Config {
@@ -16,23 +16,16 @@ public class Config {
     @Value("${cache.ttl.max:7200}")
     private int maxTtl;
 
-    private int randomInt(int max, int min) {
-        Random random = new Random();
-        return random.nextInt((max - min) + 1) + min;
-    }
-
+    // Each entry gets its own random TTL, so keys written together do not expire together (cache avalanche).
+    // Null values stay cached (the default), so a missing id does not hit the database each time (cache penetration).
     @Bean
     public RedisCacheConfiguration redisCacheConfiguration(CacheProperties properties) {
-        RedisCacheConfiguration configuration = RedisCacheConfiguration.defaultCacheConfig();
-        CacheProperties.Redis redis = properties.getRedis();
-        if (redis.getTimeToLive() != null) {
-            configuration = configuration.entryTtl(
-                    redis.getTimeToLive().plus(Duration.ofSeconds(randomInt(maxTtl, minTtl)))
-            );
-        } else {
-            configuration = configuration.entryTtl(Duration.ofSeconds(randomInt(maxTtl, minTtl)));
-        }
+        Duration base = properties.getRedis().getTimeToLive() == null
+                ? Duration.ZERO
+                : properties.getRedis().getTimeToLive();
 
-        return configuration;
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl((key, value) -> base.plusSeconds(
+                        ThreadLocalRandom.current().nextInt(minTtl, maxTtl + 1)));
     }
 }
